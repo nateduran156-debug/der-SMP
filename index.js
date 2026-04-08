@@ -304,7 +304,8 @@ client.on("messageCreate", async (message) => {
     content.includes("what is the ip") ||
     content.includes("what's the ip") ||
     content.includes("whats the ip") ||
-    content.includes("server ip")
+    content.includes("server ip") ||
+    /\bip\b/.test(content)
   ) {
     const embed = new EmbedBuilder()
       .setColor(0x5865f2)
