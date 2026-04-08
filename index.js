@@ -87,9 +87,15 @@ async function updateChannel() {
   }
 }
 
-client.once("ready", async () => {
+client.once("clientReady", async () => {
   console.log(`Logged in as ${client.user.tag}`);
   console.log(`Monitoring: ${SERVER_HOST}:${SERVER_PORT}`);
+
+  if (!CHANNEL_ID) {
+    console.error("ERROR: VOICE_CHANNEL_ID is not set in your .env file. Please add it and restart.");
+    process.exit(1);
+  }
+
   console.log(`Updating voice channel ${CHANNEL_ID} every minute`);
 
   await updateChannel();
