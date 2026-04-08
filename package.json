@@ -1,17 +1,13 @@
 {
-  "name": "der-hood-smp-bot",
+  "name": "minecraft-discord-bot",
   "version": "1.0.0",
-  "description": "Der Hood SMP Discord Bot - Minecraft server status bot",
+  "description": "Discord bot that updates a voice channel with Minecraft Bedrock player count",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node --watch index.js"
+    "start": "node index.js"
   },
   "dependencies": {
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.5"
-  },
-  "engines": {
-    "node": ">=18.0.0"
   }
 }
