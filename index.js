@@ -22,28 +22,26 @@ function pingBedrock(host, port, timeoutMs = 5000) {
       reject(new Error("Timed out waiting for server response"));
     }, timeoutMs);
 
-    // Build unconnected ping packet (0x01)
     const packet = Buffer.alloc(1 + 8 + 16 + 8);
-    packet.writeUInt8(0x01, 0);                     // packet ID
-    // 8-byte timestamp (just use 0)
+    packet.writeUInt8(0x01, 0);
     packet.writeBigInt64BE(0n, 1);
-    MAGIC.copy(packet, 9);                           // 16 magic bytes
-    // 8-byte client GUID (random)
+    MAGIC.copy(packet, 9);
     packet.writeBigInt64BE(BigInt(Math.floor(Math.random() * 0xffffffff)), 25);
 
     socket.on("message", (msg) => {
       clearTimeout(timer);
       socket.close();
-
       try {
-        // Response is 0x1c (unconnected pong)
-        // Layout: 1 ID + 8 timestamp + 8 serverGUID + 16 magic + 2 length + N string
         const strLen = msg.readUInt16BE(33);
         const motd = msg.slice(35, 35 + strLen).toString("utf8");
-        // MOTD: MCPE;name;protocol;version;online;max;...
+        // MCPE;name;protocol;version;online;max;serverid;levelname;gamemode;...
         const parts = motd.split(";");
-        const online = parseInt(parts[4], 10);
-        resolve(isNaN(online) ? 0 : online);
+        resolve({
+          online: parseInt(parts[4], 10) || 0,
+          max: parseInt(parts[5], 10) || 0,
+          name: parts[1] || "Unknown",
+          version: parts[3] || "Unknown",
+        });
       } catch (err) {
         reject(new Error("Failed to parse server response: " + err.message));
       }
@@ -58,7 +56,7 @@ function pingBedrock(host, port, timeoutMs = 5000) {
   });
 }
 
-async function getPlayerCount() {
+async function getServerStatus() {
   try {
     return await pingBedrock(SERVER_HOST, SERVER_PORT);
   } catch (err) {
@@ -67,7 +65,13 @@ async function getPlayerCount() {
   }
 }
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
+});
 
 async function updateChannel() {
   const channel = client.channels.cache.get(CHANNEL_ID);
@@ -76,8 +80,8 @@ async function updateChannel() {
     return;
   }
 
-  const count = await getPlayerCount();
-  const name = count !== null ? `Players Online: ${count}` : `Players Online: N/A`;
+  const status = await getServerStatus();
+  const name = status !== null ? `Players Online: ${status.online}` : `Players Online: N/A`;
 
   try {
     await channel.setName(name);
@@ -86,6 +90,44 @@ async function updateChannel() {
     console.error("Failed to update channel name:", err.message);
   }
 }
+
+// !status, !help, and IP auto-response
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
+
+  const content = message.content.trim().toLowerCase();
+
+  if (content === "!status") {
+    const status = await getServerStatus();
+    if (!status) {
+      return message.reply("Could not reach the server. It may be offline.");
+    }
+    return message.reply(
+      `**Server Status**\n` +
+      `Name: ${status.name}\n` +
+      `Version: ${status.version}\n` +
+      `Players: ${status.online}/${status.max}\n` +
+      `IP: \`${SERVER_HOST}\`\n` +
+      `Port: \`${SERVER_PORT}\``
+    );
+  }
+
+  if (content === "!help") {
+    return message.reply(
+      `**Commands**\n` +
+      `\`!status\` — Check the Minecraft server status and player count\n` +
+      `\`!ip\` — Get the server connection info\n` +
+      `\`!help\` — Show this message`
+    );
+  }
+
+  if (content === "!ip" || content.includes("what is the ip") || content.includes("what's the ip") || content.includes("whats the ip") || content.includes("server ip")) {
+    return message.reply(
+      `**Server IP:** \`${SERVER_HOST}\`\n` +
+      `**Port:** \`${SERVER_PORT}\``
+    );
+  }
+});
 
 client.once("clientReady", async () => {
   console.log(`Logged in as ${client.user.tag}`);
